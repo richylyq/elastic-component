@@ -1,0 +1,74 @@
+version: "3.3"
+
+services:
+
+  local-es:
+    build:
+      context: .
+      args:
+        ELASTIC_VERSION: ${ELASTIC_VERSION}
+    container_name: local-es
+    # networks:
+    #   - amaris
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - http.cors.enabled=true
+      - http.cors.allow-origin=*
+      - http.cors.allow-headers=X-Requested-With,X-Auth-Token,Content-Type,Content-Length,Authorization
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - 7010:9200
+      - 7011:9300
+    restart: always
+    volumes:
+      - local-es-data:/usr/share/elasticsearch/es-data:rw
+  
+  local-kibana:
+    image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION}
+    container_name: local-kibana
+    environment:
+      - ELASTICSEARCH_URL=http://local-es:9200
+      - ELASTICSEARCH_HOSTS=http://local-es:9200
+    depends_on:
+      - local-es
+    ports:
+      - 7012:5601
+    restart: always
+    # networks:
+    #   - amaris
+    
+  local-dejavu:
+    image: appbaseio/dejavu:3.4.7
+    container_name: local-dejavu
+    # networks:
+    #   - amaris
+    ports:
+      - 7013:1358
+    links:
+      - local-es
+    depends_on:
+      - local-es
+  
+  local-haystack:
+    image: deepset/haystack-cpu
+    container_name: local-haystack
+    # networks:
+    #   - amaris
+    ports:
+      - 7014:8000
+    environment:
+      - ES_HOST=local-es
+      - ES_PORT=9200
+      - DOCUMENTSTORE_PARAMS_HOST=local-es
+    restart: on-failure
+    depends_on:
+      - local-es
+
+volumes:
+  local-es-data:
+    driver: local
